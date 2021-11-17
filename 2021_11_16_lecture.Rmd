@@ -5,7 +5,7 @@ date: "11/16/2021"
 output: github_document
 ---
 
-```{r}
+```{r, message = FALSE}
 library(tidyverse)
 library(p8105.datasets)
 ```
@@ -46,7 +46,103 @@ fit %>%
   mutate(term = str_replace(term, "borough", "Borough: ")) %>% 
   select(term, estimate, p.value) %>% 
   knitr::kable()
-
-
 ```
 
+## Diagnostics
+
+Compare residuals and have result in a data frame
+
+```{r}
+modelr::add_residuals(nyc_airbnb, fit)
+```
+
+Graph the residual
+
+```{r}
+modelr::add_residuals(nyc_airbnb, fit) %>% 
+  ggplot(aes(x = stars, y = resid)) +
+  geom_point()
+``` 
+
+```{r}
+modelr::add_residuals(nyc_airbnb, fit) %>% 
+  ggplot(aes(x = resid)) +
+  geom_density() + 
+  xlim(-200, 200)
+```
+
+
+## Interactions? Nesting?
+Let's try a different model
+
+```{r}
+fit = lm(price ~ stars * borough + room_type * borough, data = nyc_airbnb)
+
+broom::tidy(fit)
+```
+
+let's try nesting ...
+
+```{r}
+nyc_airbnb %>% 
+  relocate(borough) %>% 
+  nest(data = price:room_type)
+```
+
+Now fit the model for each borough, and see how stars and room type affects each borough, map across the dataset
+
+```{r}
+nyc_airbnb %>% 
+  relocate(borough) %>% 
+  nest(data = price:room_type) %>% 
+  mutate(
+    lm_fits = map(.x = data, ~lm(price ~ stars+room_type, data = .x)),
+    # map the "data" column in the dataframe to lm function, .x is a place holder, so in the function lm, everytime I see .x from the data colum and fit the lm function to it
+    lm_result = map(lm_fits, broom::tidy)
+    ) %>% 
+  select(borough, lm_result) %>% 
+  unnest(lm_result) %>% 
+  # look at how stars affect the price across different boroughs 
+  filter(term == "stars")
+```
+
+Look at neighborhoods in Manhattan ... 
+
+```{r}
+manhattan_lm_results_df = 
+  nyc_airbnb %>% 
+    filter(borough == "Manhattan") %>% 
+    select(-borough) %>% 
+    relocate(neighborhood) %>% 
+    nest(data = price:room_type) %>% 
+    mutate(lm_fits = map(.x = data, ~lm(price ~   stars+room_type, data = .x)),
+           lm_results = map(lm_fits, broom::tidy)
+           ) %>% 
+    select(neighborhood, lm_results) %>% 
+    unnest(lm_results)
+```
+
+Shows the density of the estimate of the impact of stars on price. Show the relationship between stars and price.
+
+```{r}
+manhattan_lm_results_df %>% 
+  filter(term == "stars") %>% 
+  ggplot(aes(x = estimate)) + 
+  geom_density()
+```
+
+So, from the plot we can see that across the boroughs, increasing stars does not generally have that big of an effect. In some places it makes a big effect, +300, and in some places it makes things cheaper
+
+```{r}
+manhattan_lm_results_df %>% 
+  filter(str_detect(term, "room_type")) %>% 
+  ggplot(aes(x = neighborhood, y = estimate)) + 
+  geom_point() + 
+  facet_grid(~term) +
+  ## ggplot x axis textrotate
+  theme(axis.text.x = element_text(angle = 90, vjust = .5, hjust = 1))
+```
+
+interpretation:
+In every neighborhood in Manhattan, I fit a linear regression of price against stars and room type. So, if i look at any of the points, that's the coefficient for room type(private or shared) in each neighborhood when I'm adjusting for stars. Keeping star rates fixed, going to a private room from entire home is gonna cost 100 dollar less per night for battery park city. This is relatively stable across all the neighborhood in Manhattan. 
+The plot tells us what the effect is for each neighborhood, how much variability across neighborhoods, where u see bigger effects and where u see smaller effects. 
