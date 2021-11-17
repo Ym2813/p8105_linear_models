@@ -146,3 +146,38 @@ manhattan_lm_results_df %>%
 interpretation:
 In every neighborhood in Manhattan, I fit a linear regression of price against stars and room type. So, if i look at any of the points, that's the coefficient for room type(private or shared) in each neighborhood when I'm adjusting for stars. Keeping star rates fixed, going to a private room from entire home is gonna cost 100 dollar less per night for battery park city. This is relatively stable across all the neighborhood in Manhattan. 
 The plot tells us what the effect is for each neighborhood, how much variability across neighborhoods, where u see bigger effects and where u see smaller effects. 
+
+## Logistic regression example
+
+```{r}
+nyc_airbnb_exp = 
+  nyc_airbnb %>% 
+  mutate(
+    expensive_apt = as.numeric(price > 500)
+  )
+```
+
+let's fit a logistic regression for the binary outcome
+
+```{r}
+logistic_fit = 
+  glm(
+    expensive_apt ~ stars + borough, 
+    data = nyc_airbnb_exp,
+    family = binomial())
+
+
+logistic_fit %>% 
+  broom::tidy() %>% 
+  mutate(
+    term = str_replace(term,"borough","Borough: "),
+    estimate = exp(estimate)
+  ) %>% 
+  select(term, OR = estimate, p.value)
+
+nyc_airbnb_exp %>% 
+  modelr::add_predictions(logistic_fit) %>% 
+  mutate(pred = boot::inv.logit(pred))
+# pred is the probability, use boot, inverse logit
+```
+
