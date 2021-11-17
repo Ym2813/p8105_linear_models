@@ -1,0 +1,52 @@
+---
+title: "Linear Models"
+author: "Anna Ma"
+date: "11/16/2021"
+output: github_document
+---
+
+```{r}
+library(tidyverse)
+library(p8105.datasets)
+```
+
+Load NYC Airbnb data
+
+```{r}
+data("nyc_airbnb")
+
+nyc_airbnb = 
+  nyc_airbnb %>% 
+  mutate(stars = review_scores_location / 2) %>%
+  rename(
+    borough = neighbourhood_group,
+    neighborhood = neighbourhood) %>% 
+  filter(borough != "Staten Island") %>% 
+  select(price, stars, borough, neighborhood, room_type)
+```
+
+Visualizations.. 
+
+```{r}
+nyc_airbnb %>% 
+  ggplot(aes(x = stars, y = price)) +
+  geom_point()
+```
+
+Let's fit  a linear model (usually need to plot more and observe association between variables before actually fitting the regression)
+
+```{r}
+fit = lm(price ~ stars + borough, data = nyc_airbnb)
+
+#we can also do summary(fit) to see more information about the regression 
+
+#Putting the result in a dataframe: 
+fit %>% 
+  broom::tidy() %>% 
+  mutate(term = str_replace(term, "borough", "Borough: ")) %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable()
+
+
+```
+
